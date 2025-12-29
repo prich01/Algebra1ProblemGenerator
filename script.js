@@ -1,0 +1,979 @@
+
+class UserManager {
+    constructor() {
+        // Migration: Check if old 'mathAppUsers' exists and isn't email-based? 
+        // For simplicity, we'll start using 'mathAppAccounts' for the email/password system.
+        // The old 'mathAppUsers' can be deprecated or kept for legacy non-password users if we wanted,
+        // but let's focus on the new requirement.
+        this.accounts = JSON.parse(localStorage.getItem('mathAppAccounts')) || {};
+        this.currentUserEmail = localStorage.getItem('mathAppCurrentUserEmail');
+        this.updateUI();
+    }
+
+    // Simple hash function for basic password obscuring (NOT secure for real production)
+    hashPassword(password) {
+        let hash = 0;
+        for (let i = 0; i < password.length; i++) {
+            const char = password.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash.toString();
+    }
+
+    register(email, password) {
+        if (!email || !password) return { success: false, message: "Email and password required." };
+        if (this.accounts[email]) return { success: false, message: "Account already exists." };
+
+        this.accounts[email] = {
+            passwordHash: this.hashPassword(password),
+            totalAttempted: 0,
+            totalCorrect: 0,
+            topicStats: {}
+        };
+        
+        // Initialize stats
+        topics.forEach(t => {
+            this.accounts[email].topicStats[t.id] = { attempted: 0, correct: 0 };
+        });
+
+        this.currentUserEmail = email;
+        this.save();
+        this.updateUI();
+        return { success: true };
+    }
+
+    login(email, password) {
+        if (!email || !password) return { success: false, message: "Email and password required." };
+        
+        const account = this.accounts[email];
+        if (!account) return { success: false, message: "Account not found." };
+        
+        if (account.passwordHash !== this.hashPassword(password)) {
+            return { success: false, message: "Incorrect password." };
+        }
+
+        this.currentUserEmail = email;
+        this.save();
+        this.updateUI();
+        return { success: true };
+    }
+
+    logout() {
+        this.currentUserEmail = null;
+        localStorage.removeItem('mathAppCurrentUserEmail');
+        this.updateUI();
+        
+        // Reset problem view
+        if (currentTopic) {
+            generateProblem(); 
+        }
+    }
+
+    save() {
+        localStorage.setItem('mathAppAccounts', JSON.stringify(this.accounts));
+        if (this.currentUserEmail) {
+            localStorage.setItem('mathAppCurrentUserEmail', this.currentUserEmail);
+        }
+    }
+
+    updateStats(topicId, type) {
+        if (!this.currentUserEmail) return;
+        
+        const user = this.accounts[this.currentUserEmail];
+        
+        // Ensure topic exists
+        if (!user.topicStats[topicId]) {
+            user.topicStats[topicId] = { attempted: 0, correct: 0 };
+        }
+        
+        if (type === 'attempt') {
+            user.totalAttempted++;
+            user.topicStats[topicId].attempted++;
+        } else if (type === 'solve') {
+            user.totalCorrect++;
+            user.topicStats[topicId].correct++;
+        }
+        
+        this.save();
+    }
+
+    getStats() {
+        if (!this.currentUserEmail) return null;
+        return this.accounts[this.currentUserEmail];
+    }
+
+    updateUI() {
+        const loginBtn = document.getElementById('loginBtn');
+        const statsBtn = document.getElementById('statsBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const userInfo = document.getElementById('userInfo');
+        const userNameDisplay = document.getElementById('userNameDisplay');
+
+        if (this.currentUserEmail) {
+            loginBtn.style.display = 'none';
+            statsBtn.style.display = 'block';
+            logoutBtn.style.display = 'block';
+            userInfo.style.display = 'block';
+            userNameDisplay.textContent = this.currentUserEmail; // Show email as username
+        } else {
+            loginBtn.style.display = 'block';
+            statsBtn.style.display = 'none';
+            logoutBtn.style.display = 'none';
+            userInfo.style.display = 'none';
+        }
+    }
+}
+
+class MathHelper {
+    static randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    static randNonZero(min, max) {
+        let val = 0;
+        while (val === 0) {
+            val = this.randInt(min, max);
+        }
+        return val;
+    }
+
+    static formatTerm(coef, variable, isFirst = false, useHTML = true) {
+        if (coef === 0) return "";
+        let str = "";
+        if (!isFirst) {
+            str += coef > 0 ? " + " : " - ";
+            coef = Math.abs(coef);
+        } else if (coef < 0) {
+            str += "-";
+            coef = Math.abs(coef);
+        }
+
+        if (coef !== 1 || variable === "") {
+            str += coef;
+        }
+        
+        // Handle variable exponents
+        if (variable.includes('^')) {
+            if (useHTML) {
+                str += variable.replace(/\^(\d+)/g, '<sup>$1</sup>');
+            } else {
+                str += variable;
+            }
+        } else {
+            str += variable;
+        }
+        return str;
+    }
+    
+    static gcd(a, b) {
+        return b === 0 ? a : this.gcd(b, a % b);
+    }
+    
+    static simplifyFraction(num, den) {
+        const common = this.gcd(Math.abs(num), Math.abs(den));
+        num /= common;
+        den /= common;
+        if (den < 0) {
+            num = -num;
+            den = -den;
+        }
+        return den === 1 ? `${num}` : `${num}/${den}`;
+    }
+}
+
+class ProblemGenerator {
+    static simpleEquations() {
+        // ax + b = c
+        const a = MathHelper.randNonZero(-10, 10);
+        const x = MathHelper.randInt(-10, 10); // solution
+        const b = MathHelper.randInt(-20, 20);
+        const c = a * x + b;
+
+        const problem = `${MathHelper.formatTerm(a, "x", true)} ${b >= 0 ? "+ " + b : "- " + Math.abs(b)} = ${c}`;
+        
+        const steps = [
+            { text: "Subtract the constant term from both sides:", math: `${a}x = ${c} - (${b})` },
+            { text: "Simplify:", math: `${a}x = ${c - b}` },
+            { text: "Divide by the coefficient of x:", math: `x = ${c - b} / ${a}` },
+            { text: "Solution:", math: `x = ${x}` }
+        ];
+
+        return { problem, steps, answer: `${x}` };
+    }
+
+    static multiStepEquations() {
+        // ax + b = cx + d
+        let a = MathHelper.randNonZero(-10, 10);
+        let c = MathHelper.randNonZero(-10, 10);
+        while (a === c) c = MathHelper.randNonZero(-10, 10); // ensure x terms don't cancel
+        
+        const x = MathHelper.randInt(-10, 10);
+        const b = MathHelper.randInt(-20, 20);
+        const d = a * x + b - c * x;
+
+        const problem = `${MathHelper.formatTerm(a, "x", true)} ${b >= 0 ? "+ " + b : "- " + Math.abs(b)} = ${MathHelper.formatTerm(c, "x", true)} ${d >= 0 ? "+ " + d : "- " + Math.abs(d)}`;
+
+        const steps = [
+            { text: "Move variables to one side (subtract ${c}x):", math: `${a - c}x ${b >= 0 ? "+ " + b : "- " + Math.abs(b)} = ${d}` },
+            { text: "Move constants to the other side (subtract ${b}):", math: `${a - c}x = ${d - b}` },
+            { text: "Divide by coefficient:", math: `x = ${d - b} / ${a - c}` },
+            { text: "Solution:", math: `x = ${x}` }
+        ];
+
+        return { problem, steps, answer: `${x}` };
+    }
+
+    static multiStepInequalities() {
+        // ax + b < c (or >, <=, >=)
+        const a = MathHelper.randNonZero(-9, 9);
+        const x = MathHelper.randInt(-10, 10);
+        const b = MathHelper.randInt(-20, 20);
+        const c = a * x + b; 
+        
+        const symbols = ["<", ">", "≤", "≥"];
+        const sym = symbols[MathHelper.randInt(0, 3)];
+        
+        const problem = `${MathHelper.formatTerm(a, "x", true)} ${b >= 0 ? "+ " + b : "- " + Math.abs(b)} ${sym} ${c}`;
+        
+        let flip = a < 0;
+        let finalSym = sym;
+        if (flip) {
+            if (sym === "<") finalSym = ">";
+            else if (sym === ">") finalSym = "<";
+            else if (sym === "≤") finalSym = "≥";
+            else if (sym === "≥") finalSym = "≤";
+        }
+
+        const steps = [
+            { text: "Subtract constant from both sides:", math: `${a}x ${sym} ${c - b}` },
+            { text: `Divide by ${a} ${flip ? "(and flip the sign because dividing by negative)" : ""}:`, math: `x ${finalSym} ${(c - b) / a}` }
+        ];
+        
+        // For answer checking, we might accept "x < 5"
+        const answerVal = (c - b) / a;
+        // Map symbols to text input friendly versions if needed, but user calculator can have these
+        // Or we accept <= as <=.
+        return { problem, steps, answer: `x${finalSym}${answerVal}` };
+    }
+
+    static functionNotation() {
+        // f(x) = ax + b, find f(c)
+        const a = MathHelper.randNonZero(-10, 10);
+        const b = MathHelper.randInt(-20, 20);
+        const input = MathHelper.randInt(-5, 5);
+        
+        const problem = `Given f(x) = ${MathHelper.formatTerm(a, "x", true)} ${b >= 0 ? "+ " + b : "- " + Math.abs(b)}, find f(${input})`;
+        
+        const result = a * input + b;
+        
+        const steps = [
+            { text: "Substitute the value into the function:", math: `f(${input}) = ${a}(${input}) + ${b}` },
+            { text: "Multiply:", math: `f(${input}) = ${a * input} + ${b}` },
+            { text: "Add/Subtract:", math: `f(${input}) = ${result}` }
+        ];
+
+        return { problem, steps, answer: `${result}` };
+    }
+
+    static findingSlope() {
+        // Two points (x1, y1) and (x2, y2)
+        const x1 = MathHelper.randInt(-10, 10);
+        const y1 = MathHelper.randInt(-10, 10);
+        let x2 = MathHelper.randInt(-10, 10);
+        while (x2 === x1) x2 = MathHelper.randInt(-10, 10); 
+        const y2 = MathHelper.randInt(-10, 10);
+
+        const problem = `Find the slope between (${x1}, ${y1}) and (${x2}, ${y2})`;
+        
+        const num = y2 - y1;
+        const den = x2 - x1;
+        const slope = MathHelper.simplifyFraction(num, den);
+
+        const steps = [
+            { text: "Slope formula:", math: "m = (y<sub>2</sub> - y<sub>1</sub>) / (x<sub>2</sub> - x<sub>1</sub>)" },
+            { text: "Substitute values:", math: `m = (${y2} - ${y1}) / (${x2} - ${x1})` },
+            { text: "Simplify numerator and denominator:", math: `m = ${num} / ${den}` },
+            { text: "Reduce fraction:", math: `m = ${slope}` }
+        ];
+
+        return { problem, steps, answer: `${slope}` };
+    }
+
+    static writingLinearEquations() {
+        // Given slope m and y-intercept b, write equation
+        const mNum = MathHelper.randNonZero(-5, 5);
+        const mDen = MathHelper.randInt(1, 5);
+        const b = MathHelper.randInt(-10, 10);
+        
+        const mStr = MathHelper.simplifyFraction(mNum, mDen);
+        
+        const problem = `Write the equation of a line with slope m = ${mStr} and y-intercept b = ${b}`;
+        
+        const bStr = b >= 0 ? "+ " + b : "- " + Math.abs(b);
+        const eq = `y = ${mStr}x ${bStr}`;
+
+        const steps = [
+            { text: "Slope-intercept form:", math: "y = mx + b" },
+            { text: "Substitute m and b:", math: eq }
+        ];
+
+        return { problem, steps, answer: `y=${mStr}x${b >= 0 ? "+" + b : "-" + Math.abs(b)}` };
+    }
+
+    static systemsEquations() {
+        const x = MathHelper.randInt(-5, 5);
+        const y = MathHelper.randInt(-5, 5);
+        
+        const a = MathHelper.randNonZero(-5, 5);
+        const b = MathHelper.randNonZero(-5, 5);
+        const c = a * x + b * y;
+        
+        const d = MathHelper.randNonZero(-5, 5);
+        const e = d * x - b * y; 
+
+        const problem = `Solve the system:<br>1) ${MathHelper.formatTerm(a, "x", true)} ${b > 0 ? "+ " + b : "- " + Math.abs(b)}y = ${c}<br>2) ${MathHelper.formatTerm(d, "x", true)} ${-b > 0 ? "+ " + Math.abs(b) : "- " + Math.abs(b)}y = ${e}`;
+
+        const steps = [
+            { text: "Add the two equations to eliminate y:", math: `(${a}x + ${d}x) = ${c} + ${e}` },
+            { text: "Simplify:", math: `${a + d}x = ${c + e}` },
+            { text: "Solve for x:", math: `x = ${(c + e) / (a + d)}` }, 
+            { text: "Substitute x back into eq 1:", math: `${a}(${x}) + ${b}y = ${c}` },
+            { text: "Solve for y:", math: `${a*x} + ${b}y = ${c} => ${b}y = ${c - a*x} => y = ${y}` },
+            { text: "Solution:", math: `(${x}, ${y})` }
+        ];
+        
+        if (a + d === 0) {
+            return this.systemsEquations();
+        }
+
+        return { problem, steps, answer: `(${x},${y})` };
+    }
+
+    static exponentRules() {
+        // (x^a * x^b)^c
+        const a = MathHelper.randInt(2, 5);
+        const b = MathHelper.randInt(2, 5);
+        const c = MathHelper.randInt(2, 4);
+        
+        const problem = `Simplify: (x<sup>${a}</sup> · x<sup>${b}</sup>)<sup>${c}</sup>`;
+        
+        const steps = [
+            { text: "Product rule inside parenthesis (add exponents):", math: `(x<sup>${a}+${b}</sup>)<sup>${c}</sup> = (x<sup>${a+b}</sup>)<sup>${c}</sup>` },
+            { text: "Power rule (multiply exponents):", math: `x<sup>(${a+b})·${c}</sup>` },
+            { text: "Result:", math: `x<sup>${(a+b)*c}</sup>` }
+        ];
+
+        return { problem, steps, answer: `x^${(a+b)*c}` };
+    }
+
+    static exponentialFunctions() {
+        // Evaluate y = a(b)^x
+        const a = MathHelper.randInt(2, 10);
+        const b = MathHelper.randInt(2, 4);
+        const x = MathHelper.randInt(2, 4);
+        
+        const problem = `Evaluate y = ${a}(${b})<sup>x</sup> when x = ${x}`;
+        
+        const result = a * Math.pow(b, x);
+        const steps = [
+            { text: "Substitute x:", math: `y = ${a}(${b})<sup>${x}</sup>` },
+            { text: "Evaluate exponent first:", math: `y = ${a}(${Math.pow(b, x)})` },
+            { text: "Multiply:", math: `y = ${result}` }
+        ];
+
+        return { problem, steps, answer: `${result}` };
+    }
+
+    static addSubPoly() {
+        // (ax^2 + bx + c) + (dx^2 + ex + f)
+        const a = MathHelper.randNonZero(-5, 5);
+        const b = MathHelper.randInt(-9, 9);
+        const c = MathHelper.randInt(-9, 9);
+        
+        const d = MathHelper.randNonZero(-5, 5);
+        const e = MathHelper.randInt(-9, 9);
+        const f = MathHelper.randInt(-9, 9);
+        
+        const isSub = Math.random() > 0.5;
+        const op = isSub ? "-" : "+";
+        
+        const poly1 = `${MathHelper.formatTerm(a, "x^2", true, true)} ${b>=0?"+ "+b:"- "+Math.abs(b)}x ${c>=0?"+ "+c:"- "+Math.abs(c)}`;
+        const poly2 = `${MathHelper.formatTerm(d, "x^2", true, true)} ${e>=0?"+ "+e:"- "+Math.abs(e)}x ${f>=0?"+ "+f:"- "+Math.abs(f)}`;
+        
+        const problem = `(${poly1}) ${op} (${poly2})`;
+        
+        const resA = isSub ? a - d : a + d;
+        const resB = isSub ? b - e : b + e;
+        const resC = isSub ? c - f : c + f;
+        
+        // Raw answer for validation (no HTML, use ^)
+        const rawResPoly = `${MathHelper.formatTerm(resA, "x^2", true, false)} ${resB>=0?"+ "+resB:"- "+Math.abs(resB)}x ${resC>=0?"+ "+resC:"- "+Math.abs(resC)}`;
+        // Display answer
+        const displayResPoly = `${MathHelper.formatTerm(resA, "x^2", true, true)} ${resB>=0?"+ "+resB:"- "+Math.abs(resB)}x ${resC>=0?"+ "+resC:"- "+Math.abs(resC)}`;
+
+        const steps = [
+            { text: isSub ? "Distribute negative sign:" : "Remove parentheses:", math: isSub ? `${poly1} - ${MathHelper.formatTerm(d,"x^2",true, true)} ${-e>=0?"+"+ -e:"-"+Math.abs(e)}x ${-f>=0?"+"+ -f:"-"+Math.abs(f)}` : `${poly1} + ${poly2}` },
+            { text: "Combine like terms:", math: `(${a}${op}${d})x<sup>2</sup> + (${b}${op}${e})x + (${c}${op}${f})` },
+            { text: "Simplify:", math: displayResPoly }
+        ];
+
+        return { problem, steps, answer: rawResPoly };
+    }
+
+    static multPoly() {
+        // (ax + b)(cx + d)
+        const a = MathHelper.randNonZero(1, 5);
+        const b = MathHelper.randInt(-5, 5);
+        const c = MathHelper.randNonZero(1, 5);
+        const d = MathHelper.randInt(-5, 5);
+        
+        const term1 = `${MathHelper.formatTerm(a, "x", true)} ${b>=0?"+ "+b:"- "+Math.abs(b)}`;
+        const term2 = `${MathHelper.formatTerm(c, "x", true)} ${d>=0?"+ "+d:"- "+Math.abs(d)}`;
+        
+        const problem = `Multiply: (${term1})(${term2})`;
+        
+        const first = a * c;
+        const outer = a * d;
+        const inner = b * c;
+        const last = b * d;
+        
+        const middle = outer + inner;
+        
+        const rawResPoly = `${MathHelper.formatTerm(first, "x^2", true, false)} ${middle>=0?"+ "+middle:"- "+Math.abs(middle)}x ${last>=0?"+ "+last:"- "+Math.abs(last)}`;
+        const displayResPoly = `${MathHelper.formatTerm(first, "x^2", true, true)} ${middle>=0?"+ "+middle:"- "+Math.abs(middle)}x ${last>=0?"+ "+last:"- "+Math.abs(last)}`;
+
+        const steps = [
+            { text: "FOIL Method (First, Outer, Inner, Last):", math: `F: ${a}x·${c}x = ${first}x<sup>2</sup><br>O: ${a}x·${d} = ${outer}x<br>I: ${b}·${c}x = ${inner}x<br>L: ${b}·${d} = ${last}` },
+            { text: "Combine like terms:", math: `${first}x<sup>2</sup> + (${outer} + ${inner})x + ${last}` },
+            { text: "Result:", math: displayResPoly }
+        ];
+
+        return { problem, steps, answer: rawResPoly };
+    }
+
+    static factorQuadA1() {
+        // x^2 + bx + c
+        const m = MathHelper.randNonZero(-9, 9);
+        const n = MathHelper.randNonZero(-9, 9);
+        
+        const b = m + n;
+        const c = m * n;
+        
+        const problem = `Factor: x<sup>2</sup> ${b>=0?"+ "+b:"- "+Math.abs(b)}x ${c>=0?"+ "+c:"- "+Math.abs(c)}`;
+        
+        const steps = [
+            { text: "Find two numbers that multiply to c and add to b.", math: `Product = ${c}, Sum = ${b}` },
+            { text: "The numbers are:", math: `${m} and ${n}` },
+            { text: "Write in factored form:", math: `(x ${m>=0?"+ "+m:"- "+Math.abs(m)})(x ${n>=0?"+ "+n:"- "+Math.abs(n)})` }
+        ];
+
+        return { problem, steps, answer: `(x${m>=0?"+"+m:"-"+Math.abs(m)})(x${n>=0?"+"+n:"-"+Math.abs(n)})` };
+    }
+
+    static factorQuadAGt1() {
+        // ax^2 + bx + c
+        const p = MathHelper.randInt(2, 4);
+        const q = MathHelper.randNonZero(-5, 5);
+        const r = MathHelper.randInt(1, 3);
+        const s = MathHelper.randNonZero(-5, 5);
+        
+        const a = p * r;
+        const b = p * s + q * r;
+        const c = q * s;
+        
+        const problem = `Factor: ${a}x<sup>2</sup> ${b>=0?"+ "+b:"- "+Math.abs(b)}x ${c>=0?"+ "+c:"- "+Math.abs(c)}`;
+        
+        const steps = [
+            { text: "Find factors of ac that add to b (grouping method).", math: `ac = ${a*c}, b = ${b}` },
+            { text: "Split the middle term:", math: `${a}x<sup>2</sup> ${p*s}x + ${q*r}x ${c}`.replace(/\+\-/g, '- ') }, 
+            { text: "Factor by grouping:", math: `(${p}x ${q>=0?"+ "+q:"- "+Math.abs(q)})(${r}x ${s>=0?"+ "+s:"- "+Math.abs(s)})` }
+        ];
+
+        return { problem, steps, answer: `(${p}x${q>=0?"+"+q:"-"+Math.abs(q)})(${r}x${s>=0?"+"+s:"-"+Math.abs(s)})` };
+    }
+
+    static quadApp() {
+        // Area of rectangle
+        const w = MathHelper.randInt(5, 15);
+        const lDiff = MathHelper.randInt(2, 8);
+        const l = w + lDiff;
+        const area = w * l;
+        
+        const problem = `The length of a rectangle is ${lDiff} units more than its width. The area is ${area} square units. Find the width.`;
+        
+        const steps = [
+            { text: "Set up equation (w = width):", math: "w(w + " + lDiff + ") = " + area },
+            { text: "Distribute and move constant:", math: "w<sup>2</sup> + " + lDiff + "w - " + area + " = 0" },
+            { text: "Factor:", math: `(w + ${l})(w - ${w}) = 0` },
+            { text: "Solve (width must be positive):", math: `w = ${w}` }
+        ];
+
+        return { problem, steps, answer: `${w}` };
+    }
+    
+    static projectileMotion() {
+        // h(t) = -16t^2 + vt + h
+        const t = MathHelper.randInt(2, 6); // time to hit ground
+        let h0, v0, steps;
+        
+        if (Math.random() > 0.5) {
+            // Ground launch
+            h0 = 0;
+            v0 = 16 * t;
+            
+            steps = [
+                { text: "Set height to 0 (ground level):", math: `0 = -16t<sup>2</sup> + ${v0}t` },
+                { text: "Factor out -16t:", math: `0 = -16t(t - ${t})` },
+                { text: "Solve for t:", math: `t = 0 (start) or t = ${t} (end)` },
+                { text: "Answer:", math: `${t} seconds` }
+            ];
+        } else {
+            // Platform launch
+            const t_neg = MathHelper.randInt(1, 3); // time before launch (virtual)
+            h0 = 16 * t * t_neg;
+            v0 = 16 * (t - t_neg); 
+            
+            const v0Str = v0 >= 0 ? "+ " + v0 : "- " + Math.abs(v0);
+            
+            steps = [
+                { text: "Set height to 0:", math: `0 = -16t<sup>2</sup> ${v0Str}t + ${h0}` },
+                { text: "Divide by -16:", math: `0 = t<sup>2</sup> ${v0>=0?"- "+(v0/16):"+ "+Math.abs(v0/16)}t - ${h0/16}` },
+                { text: "Factor:", math: `0 = (t - ${t})(t + ${t_neg})` },
+                { text: "Solve for positive t:", math: `t = ${t}` },
+                { text: "Answer:", math: `${t} seconds` }
+            ];
+        }
+        
+        const v0Disp = v0 >= 0 ? "+ " + v0 : "- " + Math.abs(v0);
+        const problem = `An object is launched with initial velocity ${v0} ft/s from a height of ${h0} ft.<br>Height equation: h(t) = -16t<sup>2</sup> ${v0Disp}t + ${h0}<br>How long until it hits the ground?`;
+        
+        return { problem, steps, answer: `${t}` };
+    }
+}
+
+// UI Logic
+const topics = [
+    { id: 'simpleEquations', name: 'Simple Equations' },
+    { id: 'multiStepEquations', name: 'Multi-Step Equations' },
+    { id: 'multiStepInequalities', name: 'Inequalities' },
+    { id: 'functionNotation', name: 'Function Notation' },
+    { id: 'findingSlope', name: 'Finding Slope' },
+    { id: 'writingLinearEquations', name: 'Linear Equations' },
+    { id: 'systemsEquations', name: 'Systems of Equations' },
+    { id: 'exponentRules', name: 'Exponent Rules' },
+    { id: 'exponentialFunctions', name: 'Exponential Functions' },
+    { id: 'addSubPoly', name: 'Add/Sub Polynomials' },
+    { id: 'multPoly', name: 'Multiply Polynomials' },
+    { id: 'factorQuadA1', name: 'Factor Quadratics (a=1)' },
+    { id: 'factorQuadAGt1', name: 'Factor Quadratics (a>1)' },
+    { id: 'quadApp', name: 'Quadratic Applications' },
+    { id: 'projectileMotion', name: 'Projectile Motion' }
+];
+
+const sidebar = document.getElementById('sidebar');
+const problemTitle = document.getElementById('problemTitle');
+const problemDisplay = document.getElementById('problemDisplay');
+const newProblemBtn = document.getElementById('newProblemBtn');
+const showSolutionBtn = document.getElementById('showSolutionBtn');
+const solutionArea = document.getElementById('solutionArea');
+const inputArea = document.getElementById('inputArea');
+const userAnswer = document.getElementById('userAnswer');
+const submitBtn = document.getElementById('submitBtn');
+const feedback = document.getElementById('feedback');
+const calculatorBtn = document.getElementById('calculatorBtn');
+const calculatorModal = document.getElementById('calculatorModal');
+const closeCalcBtn = document.getElementById('closeCalcBtn');
+
+let currentTopic = null;
+let currentSolution = null;
+let currentAnswer = null;
+let isProblemSolved = false;
+let hasAttemptedCurrent = false;
+
+// Initialize Sidebar
+topics.forEach(topic => {
+    const btn = document.createElement('button');
+    btn.className = 'topic-btn';
+    btn.textContent = topic.name;
+    btn.onclick = () => selectTopic(topic);
+    sidebar.appendChild(btn);
+});
+
+// Initialize Calculator
+const calcButtons = [
+    'C', '⌫', '(', ')', '^',
+    '7', '8', '9', '/', 'x',
+    '4', '5', '6', '*', 'y',
+    '1', '2', '3', '-', 't',
+    '0', '.', ',', '+', '=',
+    '<', '>', '≤', '≥', '√'
+];
+
+const calcGrid = document.querySelector('.calc-grid');
+calcButtons.forEach(char => {
+    const btn = document.createElement('button');
+    btn.textContent = char;
+    btn.style.padding = '10px';
+    btn.style.fontSize = '1.1rem';
+    btn.style.border = '1px solid #dcdde1';
+    btn.style.borderRadius = '5px';
+    btn.style.cursor = 'pointer';
+    btn.style.backgroundColor = '#f5f6fa';
+    
+    if (char === 'C') {
+        btn.style.backgroundColor = '#e74c3c';
+        btn.style.color = 'white';
+        btn.onclick = () => { userAnswer.value = ''; userAnswer.focus(); };
+    } else if (char === '⌫') {
+        btn.style.backgroundColor = '#95a5a6';
+        btn.style.color = 'white';
+        btn.onclick = () => { userAnswer.value = userAnswer.value.slice(0, -1); userAnswer.focus(); };
+    } else {
+        if (char === '=') {
+            btn.style.backgroundColor = '#4a90e2';
+            btn.style.color = 'white';
+        }
+        btn.onclick = () => { 
+            userAnswer.value += char; 
+            userAnswer.focus();
+        };
+    }
+    
+    calcGrid.appendChild(btn);
+});
+
+calculatorBtn.onclick = () => calculatorModal.style.display = 'block';
+closeCalcBtn.onclick = () => calculatorModal.style.display = 'none';
+
+// Drag Functionality
+const calcHeader = document.getElementById('calcHeader');
+let isDragging = false;
+let currentX;
+let currentY;
+let initialX;
+let initialY;
+let xOffset = 0;
+let yOffset = 0;
+
+calcHeader.addEventListener("mousedown", dragStart);
+calcHeader.addEventListener("touchstart", dragStart, {passive: false});
+
+function dragStart(e) {
+    let clientX, clientY;
+    if (e.type === 'touchstart') {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
+
+    initialX = clientX - xOffset;
+    initialY = clientY - yOffset;
+
+    if (e.target.id === 'closeCalcBtn') return;
+
+    if (e.target === calcHeader || calcHeader.contains(e.target)) {
+        isDragging = true;
+        if (e.type === 'touchstart') {
+            document.addEventListener("touchend", dragEnd);
+            document.addEventListener("touchmove", drag, {passive: false});
+        } else {
+            document.addEventListener("mouseup", dragEnd);
+            document.addEventListener("mousemove", drag);
+        }
+    }
+}
+
+function dragEnd() {
+    isDragging = false;
+    document.removeEventListener("mouseup", dragEnd);
+    document.removeEventListener("mousemove", drag);
+    document.removeEventListener("touchend", dragEnd);
+    document.removeEventListener("touchmove", drag);
+}
+
+function drag(e) {
+    if (isDragging) {
+        e.preventDefault();
+        
+        let clientX, clientY;
+        if (e.type === 'touchmove') {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        currentX = clientX - initialX;
+        currentY = clientY - initialY;
+
+        xOffset = currentX;
+        yOffset = currentY;
+
+        setTranslate(currentX, currentY, calculatorModal);
+    }
+}
+
+function setTranslate(xPos, yPos, el) {
+    el.style.transform = `translate(calc(-50% + ${xPos}px), ${yPos}px)`;
+}
+
+function selectTopic(topic) {
+    currentTopic = topic;
+    
+    // Update active button
+    document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Update UI
+    problemTitle.textContent = topic.name;
+    newProblemBtn.style.display = 'block';
+    showSolutionBtn.style.display = 'block';
+    inputArea.style.display = 'block';
+    
+    generateProblem();
+}
+
+function generateProblem() {
+    if (!currentTopic) return;
+    
+    const data = ProblemGenerator[currentTopic.id]();
+    problemDisplay.innerHTML = data.problem;
+    currentSolution = data.steps;
+    currentAnswer = data.answer;
+    
+    // Reset Solution Area
+    solutionArea.style.display = 'none';
+    solutionArea.innerHTML = '';
+    
+    // Reset Input
+    userAnswer.value = '';
+    feedback.textContent = '';
+    userAnswer.style.borderColor = '#dcdde1';
+    isProblemSolved = false;
+    hasAttemptedCurrent = false;
+}
+
+function showSolution() {
+    if (!currentSolution) return;
+    
+    solutionArea.innerHTML = '';
+    currentSolution.forEach(step => {
+        const div = document.createElement('div');
+        div.className = 'solution-step';
+        div.innerHTML = `
+            <div class="step-text">${step.text}</div>
+            <div class="step-math">${step.math}</div>
+        `;
+        solutionArea.appendChild(div);
+    });
+    
+    solutionArea.style.display = 'block';
+}
+
+function checkAnswer() {
+    if (!currentAnswer) return;
+    
+    let userVal = userAnswer.value.replace(/\s+/g, '').toLowerCase();
+    const correctVal = currentAnswer.replace(/\s+/g, '').toLowerCase();
+    
+    // Normalize inequalities
+    userVal = userVal.replace(/<=/g, '≤').replace(/>=/g, '≥');
+    
+    // Normalize simple variations
+    // Handle x=5 vs 5
+    let isCorrect = userVal === correctVal;
+    
+    if (!isCorrect) {
+        // Try to be smart about checking
+        if (correctVal.includes('=') && !userVal.includes('=')) {
+            // Check if user just typed the number
+            const parts = correctVal.split('=');
+            if (parts.length > 1 && userVal === parts[1]) {
+                isCorrect = true;
+            }
+        }
+        
+        // Handle factoring (x+a)(x+b) vs (x+b)(x+a)
+        if (currentTopic.id.startsWith('factorQuad')) {
+            // Naive check: does user have same parts?
+            // Expecting (x+a)(x+b)
+            // Remove outer parens if wrapped in one big block? No, usually (a)(b)
+            // Let's just check if it contains (x+a) AND (x+b)
+            // But what if a=b?
+            // This is complex to do perfectly in JS string compare.
+            // Let's try to match sorted factors.
+            const userFactors = userVal.match(/\(.*?\)/g);
+            const correctFactors = correctVal.match(/\(.*?\)/g);
+            
+            if (userFactors && correctFactors && userFactors.length === correctFactors.length) {
+                userFactors.sort();
+                correctFactors.sort();
+                if (JSON.stringify(userFactors) === JSON.stringify(correctFactors)) {
+                    isCorrect = true;
+                }
+            }
+        }
+    }
+
+    // Track Stats
+    if (!hasAttemptedCurrent) {
+        userManager.updateStats(currentTopic.id, 'attempt');
+        hasAttemptedCurrent = true;
+    }
+    
+    if (isCorrect) {
+        if (!isProblemSolved) {
+            userManager.updateStats(currentTopic.id, 'solve');
+            isProblemSolved = true;
+        }
+        feedback.textContent = "Correct! Great job!";
+        feedback.style.color = "#27ae60";
+        userAnswer.style.borderColor = "#27ae60";
+    } else {
+        feedback.textContent = "Incorrect. Try again or check the solution.";
+        feedback.style.color = "#c0392b";
+        userAnswer.style.borderColor = "#c0392b";
+    }
+}
+
+newProblemBtn.onclick = generateProblem;
+showSolutionBtn.onclick = showSolution;
+submitBtn.onclick = checkAnswer;
+userAnswer.onkeypress = (e) => {
+    if (e.key === 'Enter') checkAnswer();
+};
+
+// User System Integration
+const userManager = new UserManager();
+
+// Elements
+const loginModal = document.getElementById('loginModal');
+const statsModal = document.getElementById('statsModal');
+const emailInput = document.getElementById('emailInput');
+const passwordInput = document.getElementById('passwordInput');
+const authError = document.getElementById('authError');
+const authTitle = document.getElementById('authTitle');
+const authSubtitle = document.getElementById('authSubtitle');
+const submitAuthBtn = document.getElementById('submitAuthBtn');
+const toggleAuthModeBtn = document.getElementById('toggleAuthModeBtn');
+const authSwitchText = document.getElementById('authSwitchText');
+
+let isLoginMode = true;
+
+// Event Listeners
+document.getElementById('loginBtn').onclick = () => {
+    loginModal.style.display = 'flex';
+    emailInput.focus();
+    // Reset to Login Mode
+    isLoginMode = true;
+    updateAuthModalUI();
+    authError.style.display = 'none';
+    emailInput.value = '';
+    passwordInput.value = '';
+};
+
+document.getElementById('logoutBtn').onclick = () => userManager.logout();
+
+function updateAuthModalUI() {
+    if (isLoginMode) {
+        authTitle.textContent = "Login";
+        authSubtitle.textContent = "Enter your credentials to access your history.";
+        submitAuthBtn.textContent = "Login";
+        authSwitchText.textContent = "Don't have an account?";
+        toggleAuthModeBtn.textContent = "Sign Up";
+        submitAuthBtn.style.backgroundColor = "#3498db";
+    } else {
+        authTitle.textContent = "Create Account";
+        authSubtitle.textContent = "Sign up to track your progress securely.";
+        submitAuthBtn.textContent = "Sign Up";
+        authSwitchText.textContent = "Already have an account?";
+        toggleAuthModeBtn.textContent = "Login";
+        submitAuthBtn.style.backgroundColor = "#27ae60";
+    }
+}
+
+toggleAuthModeBtn.onclick = () => {
+    isLoginMode = !isLoginMode;
+    updateAuthModalUI();
+    authError.style.display = 'none';
+};
+
+submitAuthBtn.onclick = () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
+    
+    if (!email || !password) {
+        authError.textContent = "Please enter both email and password.";
+        authError.style.display = 'block';
+        return;
+    }
+
+    let result;
+    if (isLoginMode) {
+        result = userManager.login(email, password);
+    } else {
+        result = userManager.register(email, password);
+    }
+
+    if (result.success) {
+        loginModal.style.display = 'none';
+        emailInput.value = '';
+        passwordInput.value = '';
+        authError.style.display = 'none';
+    } else {
+        authError.textContent = result.message;
+        authError.style.display = 'block';
+    }
+};
+
+document.getElementById('cancelLoginBtn').onclick = () => {
+    loginModal.style.display = 'none';
+};
+
+document.getElementById('closeStatsBtn').onclick = () => {
+    statsModal.style.display = 'none';
+};
+
+// Stats Display
+document.getElementById('statsBtn').onclick = () => {
+    const stats = userManager.getStats();
+    if (!stats) return;
+
+    // Update Header Stats
+    document.getElementById('totalAttempted').textContent = stats.totalAttempted;
+    document.getElementById('totalCorrect').textContent = stats.totalCorrect;
+    const accuracy = stats.totalAttempted > 0 ? Math.round((stats.totalCorrect / stats.totalAttempted) * 100) : 0;
+    document.getElementById('overallAccuracy').textContent = `${accuracy}%`;
+
+    // Update Table
+    const tbody = document.getElementById('statsTableBody');
+    tbody.innerHTML = '';
+
+    topics.forEach(topic => {
+        const tStats = stats.topicStats[topic.id] || { attempted: 0, correct: 0 };
+        const tAcc = tStats.attempted > 0 ? Math.round((tStats.correct / tStats.attempted) * 100) : 0;
+        
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #ecf0f1';
+        row.innerHTML = `
+            <td style="padding: 12px; color: #2c3e50;">${topic.name}</td>
+            <td style="padding: 12px; text-align: center; color: #7f8c8d;">${tStats.attempted}</td>
+            <td style="padding: 12px; text-align: center; color: #27ae60; font-weight: bold;">${tStats.correct}</td>
+            <td style="padding: 12px; text-align: center; color: #2980b9;">${tAcc}%</td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    statsModal.style.display = 'flex';
+};
+
+// Close modals on outside click
+window.onclick = (e) => {
+    if (e.target === calculatorModal) calculatorModal.style.display = 'none';
+    if (e.target === loginModal) loginModal.style.display = 'none';
+    if (e.target === statsModal) statsModal.style.display = 'none';
+};
