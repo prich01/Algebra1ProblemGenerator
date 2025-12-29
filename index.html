@@ -1,347 +1,4 @@
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#4a90e2">
-    <title>Algebra 1 Practice</title>
-    <style>
-        :root {
-            --primary-color: #4a90e2;
-            --secondary-color: #f5f6fa;
-            --text-color: #2c3e50;
-            --border-radius: 8px;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #eef2f7;
-            color: var(--text-color);
-            display: flex;
-            height: 100vh;
-            overflow: hidden; /* Prevent body scroll, handle in containers */
-        }
-
-        /* Mobile First / Responsive Adjustments */
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-            .sidebar {
-                width: 100% !important;
-                height: auto !important;
-                max-height: 150px; /* Collapsed height */
-                flex-direction: row !important;
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                padding: 10px !important;
-                gap: 10px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            }
-            .sidebar h2 {
-                display: none; /* Hide title on mobile to save space */
-            }
-            .topic-btn {
-                min-width: 120px; /* Buttons side-by-side */
-                text-align: center !important;
-                font-size: 0.9rem !important;
-                padding: 8px !important;
-            }
-            .main-content {
-                padding: 20px !important;
-            }
-            .problem-card {
-                padding: 20px !important;
-                margin-top: 40px; /* Space for user controls */
-            }
-            .problem-display {
-                font-size: 1.8rem !important;
-            }
-            #userControls {
-                flex-wrap: wrap;
-                justify-content: flex-end;
-            }
-            #userControls .btn {
-                padding: 8px 12px;
-                font-size: 0.8rem;
-            }
-            #userInfo {
-                font-size: 0.8rem;
-            }
-            .input-area input {
-                width: 100% !important; /* Full width input */
-                max-width: 200px;
-            }
-            /* Modal Adjustments */
-            #calculatorModal {
-                width: 90% !important;
-                top: 60px !important;
-            }
-            #statsModal > div, #loginModal > div {
-                width: 90% !important;
-                padding: 20px !important;
-            }
-            .calc-grid button {
-                padding: 15px !important; /* Larger touch targets */
-            }
-        }
-
-        .sidebar {
-            width: 300px;
-            background-color: white;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .sidebar h2 {
-            margin-top: 0;
-            color: var(--primary-color);
-            font-size: 1.5rem;
-            text-align: center;
-        }
-
-        .topic-btn {
-            background-color: white;
-            border: 1px solid #dcdde1;
-            padding: 12px;
-            border-radius: var(--border-radius);
-            cursor: pointer;
-            text-align: left;
-            transition: all 0.2s;
-            font-size: 0.95rem;
-        }
-
-        .topic-btn:hover {
-            background-color: var(--secondary-color);
-            border-color: var(--primary-color);
-        }
-
-        .topic-btn.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .main-content {
-            flex: 1;
-            padding: 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-y: auto;
-        }
-
-        .problem-card {
-            background-color: white;
-            padding: 40px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 800px;
-            text-align: center;
-        }
-
-        .problem-title {
-            color: #7f8c8d;
-            font-size: 1.1rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 20px;
-        }
-
-        .problem-display {
-            font-size: 2.5rem;
-            margin: 30px 0;
-            font-family: 'Times New Roman', Times, serif;
-        }
-
-        .controls {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 30px;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: var(--border-radius);
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            transition: transform 0.1s;
-        }
-
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .btn-new {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-solve {
-            background-color: #2ecc71;
-            color: white;
-        }
-
-        .solution-area {
-            margin-top: 30px;
-            text-align: left;
-            background-color: var(--secondary-color);
-            padding: 20px;
-            border-radius: var(--border-radius);
-            display: none;
-        }
-
-        .solution-step {
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #dcdde1;
-        }
-
-        .solution-step:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-
-        .step-text {
-            font-weight: bold;
-            color: #34495e;
-            margin-bottom: 5px;
-        }
-
-        .step-math {
-            font-family: 'Times New Roman', Times, serif;
-            font-size: 1.2rem;
-            color: var(--primary-color);
-        }
-    </style>
-</head>
-<body>
-    <div style="position: fixed; top: 20px; right: 20px; z-index: 100;">
-        <div id="userControls" style="display: flex; gap: 10px;">
-            <button id="loginBtn" class="btn" style="background-color: #34495e; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">👤 Login / Sign Up</button>
-            <button id="statsBtn" class="btn" style="background-color: #9b59b6; color: white; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">📊 Stats</button>
-            <button id="logoutBtn" class="btn" style="background-color: #e74c3c; color: white; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">Log Out</button>
-        </div>
-        <div id="userInfo" style="text-align: right; margin-top: 5px; font-weight: bold; color: #2c3e50; display: none;">
-            Welcome, <span id="userNameDisplay">User</span>
-        </div>
-    </div>
-
-    <div class="sidebar" id="sidebar">
-        <h2>Algebra 1</h2>
-        </div>
-
-    <div class="main-content">
-        <div class="problem-card">
-            <div class="problem-title" id="problemTitle">Select a Topic</div>
-            <div class="problem-display" id="problemDisplay">Choose a topic from the sidebar to begin</div>
-            
-            <div class="input-area" id="inputArea" style="display: none; margin-bottom: 20px;">
-                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
-                    <input type="text" id="userAnswer" placeholder="Type your answer here..." style="padding: 10px; font-size: 1.1rem; border: 1px solid #dcdde1; border-radius: 4px; width: 300px;">
-                    <button id="calculatorBtn" class="btn" style="background-color: #f1c40f; color: white; padding: 10px 15px;">⌨️ Calc</button>
-                </div>
-                <div style="margin-top: 10px;">
-                    <button id="submitBtn" class="btn" style="background-color: #3498db; color: white;">Submit Answer</button>
-                </div>
-                <div id="feedback" style="margin-top: 15px; font-weight: bold; min-height: 24px;"></div>
-            </div>
-
-            <div class="controls">
-                <button class="btn btn-new" id="newProblemBtn" style="display: none;">New Problem</button>
-                <button class="btn btn-solve" id="showSolutionBtn" style="display: none;">Show Solution</button>
-            </div>
-
-            <div class="solution-area" id="solutionArea">
-                </div>
-        </div>
-    </div>
-
-    <div id="calculatorModal" style="display: none; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; background-color: white; padding: 0; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 320px; border: 1px solid #dcdde1;">
-        <div id="calcHeader" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; cursor: move; background-color: #f1f2f6; border-radius: 10px 10px 0 0; border-bottom: 1px solid #dcdde1;">
-            <h3 style="margin: 0; color: #2c3e50; font-size: 1.2rem;">Calculator</h3>
-            <button id="closeCalcBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #7f8c8d; line-height: 1;">&times;</button>
-        </div>
-        <div style="padding: 20px;">
-            <div class="calc-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
-                </div>
-        </div>
-    </div>
-
-    <div id="loginModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
-        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 350px; text-align: center;">
-            <h2 id="authTitle" style="color: #2c3e50; margin-top: 0;">Login</h2>
-            <p id="authSubtitle" style="color: #7f8c8d; margin-bottom: 20px;">Enter your credentials to access your history.</p>
-            
-            <div id="authError" style="color: #e74c3c; margin-bottom: 15px; font-size: 0.9rem; display: none;"></div>
-
-            <input type="email" id="emailInput" placeholder="Email Address" style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #dcdde1; border-radius: 4px; box-sizing: border-box; font-size: 1rem;">
-            <input type="password" id="passwordInput" placeholder="Password" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #dcdde1; border-radius: 4px; box-sizing: border-box; font-size: 1rem;">
-            
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button id="submitAuthBtn" class="btn" style="background-color: #3498db; color: white; width: 100%;">Login</button>
-                <div style="font-size: 0.9rem; color: #7f8c8d;">
-                    <span id="authSwitchText">Don't have an account?</span>
-                    <button id="toggleAuthModeBtn" style="background: none; border: none; color: #3498db; cursor: pointer; font-weight: bold; text-decoration: underline;">Sign Up</button>
-                </div>
-            </div>
-            <button id="cancelLoginBtn" style="background: none; border: none; color: #95a5a6; margin-top: 15px; cursor: pointer; text-decoration: underline;">Continue as Guest</button>
-        </div>
-    </div>
-
-    <div id="statsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
-        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 600px; max-height: 80vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: #2c3e50; margin: 0;">Progress Report</h2>
-                <button id="closeStatsBtn" style="background: none; border: none; font-size: 2rem; cursor: pointer; line-height: 1;">&times;</button>
-            </div>
-            
-            <div style="display: flex; justify-content: space-around; margin-bottom: 30px; background-color: #f1f2f6; padding: 20px; border-radius: 8px;">
-                <div style="text-align: center;">
-                    <div style="font-size: 2rem; color: #2980b9;" id="totalAttempted">0</div>
-                    <div style="color: #7f8c8d; font-size: 0.9rem;">Attempted</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 2rem; color: #27ae60;" id="totalCorrect">0</div>
-                    <div style="color: #7f8c8d; font-size: 0.9rem;">Correct</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 2rem; color: #f39c12;" id="overallAccuracy">0%</div>
-                    <div style="color: #7f8c8d; font-size: 0.9rem;">Accuracy</div>
-                </div>
-            </div>
-
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background-color: #ecf0f1; text-align: left;">
-                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7;">Topic</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; text-align: center;">Attempts</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; text-align: center;">Correct</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; text-align: center;">%</th>
-                    </tr>
-                </thead>
-                <tbody id="statsTableBody">
-                    </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
-</body>
-</html>
-
 class UserManager {
     constructor() {
         // Migration: Check if old 'mathAppUsers' exists and isn't email-based? 
@@ -1320,6 +977,358 @@ window.onclick = (e) => {
     if (e.target === loginModal) loginModal.style.display = 'none';
     if (e.target === statsModal) statsModal.style.display = 'none';
 };
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="manifest" href="manifest.json">
+    <title>Algebra 1 Practice</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #eef2f7;
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden; /* Prevent body scroll, handle in containers */
+        }
+
+        /* Mobile First / Responsive Adjustments */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100% !important;
+                height: auto !important;
+                max-height: 150px; /* Collapsed height */
+                flex-direction: row !important;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding: 10px !important;
+                gap: 10px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            }
+            .sidebar h2 {
+                display: none; /* Hide title on mobile to save space */
+            }
+            .topic-btn {
+                min-width: 120px; /* Buttons side-by-side */
+                text-align: center !important;
+                font-size: 0.9rem !important;
+                padding: 8px !important;
+            }
+            .main-content {
+                padding: 20px !important;
+            }
+            .problem-card {
+                padding: 20px !important;
+                margin-top: 40px; /* Space for user controls */
+            }
+            .problem-display {
+                font-size: 1.8rem !important;
+            }
+            #userControls {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+            #userControls .btn {
+                padding: 8px 12px;
+                font-size: 0.8rem;
+            }
+            #userInfo {
+                font-size: 0.8rem;
+            }
+            .input-area input {
+                width: 100% !important; /* Full width input */
+                max-width: 200px;
+            }
+            /* Modal Adjustments */
+            #calculatorModal {
+                width: 90% !important;
+                top: 60px !important;
+            }
+            #statsModal > div, #loginModal > div {
+                width: 90% !important;
+                padding: 20px !important;
+            }
+            .calc-grid button {
+                padding: 15px !important; /* Larger touch targets */
+            }
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .topic-btn {
+            background-color: white;
+            border: 1px solid #dcdde1;
+            padding: 12px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .topic-btn:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--primary-color);
+        }
+
+        .topic-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+        }
+
+        .problem-card {
+            background-color: white;
+            padding: 40px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        .problem-title {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+        .problem-display {
+            font-size: 2.5rem;
+            margin: 30px 0;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-new {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-solve {
+            background-color: #2ecc71;
+            color: white;
+        }
+
+        .solution-area {
+            margin-top: 30px;
+            text-align: left;
+            background-color: var(--secondary-color);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            display: none;
+        }
+
+        .solution-step {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #dcdde1;
+        }
+
+        .solution-step:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .step-text {
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 5px;
+        }
+
+        .step-math {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar for User Info -->
+    <div style="position: fixed; top: 20px; right: 20px; z-index: 100;">
+        <div id="userControls" style="display: flex; gap: 10px;">
+            <button id="loginBtn" class="btn" style="background-color: #34495e; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">👤 Login / Sign Up</button>
+            <button id="statsBtn" class="btn" style="background-color: #9b59b6; color: white; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">📊 Stats</button>
+            <button id="logoutBtn" class="btn" style="background-color: #e74c3c; color: white; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">Log Out</button>
+        </div>
+        <div id="userInfo" style="text-align: right; margin-top: 5px; font-weight: bold; color: #2c3e50; display: none;">
+            Welcome, <span id="userNameDisplay">User</span>
+        </div>
+    </div>
+
+    <div class="sidebar" id="sidebar">
+        <h2>Algebra 1</h2>
+        <!-- Buttons will be generated here -->
+    </div>
+
+    <div class="main-content">
+        <div class="problem-card">
+            <div class="problem-title" id="problemTitle">Select a Topic</div>
+            <div class="problem-display" id="problemDisplay">Choose a topic from the sidebar to begin</div>
+            
+            <div class="input-area" id="inputArea" style="display: none; margin-bottom: 20px;">
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                    <input type="text" id="userAnswer" placeholder="Type your answer here..." style="padding: 10px; font-size: 1.1rem; border: 1px solid #dcdde1; border-radius: 4px; width: 300px;">
+                    <button id="calculatorBtn" class="btn" style="background-color: #f1c40f; color: white; padding: 10px 15px;">⌨️ Calc</button>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button id="submitBtn" class="btn" style="background-color: #3498db; color: white;">Submit Answer</button>
+                </div>
+                <div id="feedback" style="margin-top: 15px; font-weight: bold; min-height: 24px;"></div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-new" id="newProblemBtn" style="display: none;">New Problem</button>
+                <button class="btn btn-solve" id="showSolutionBtn" style="display: none;">Show Solution</button>
+            </div>
+
+            <div class="solution-area" id="solutionArea">
+                <!-- Steps will go here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Calculator Popup (Draggable) -->
+    <div id="calculatorModal" style="display: none; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; background-color: white; padding: 0; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); width: 320px; border: 1px solid #dcdde1;">
+        <div id="calcHeader" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; cursor: move; background-color: #f1f2f6; border-radius: 10px 10px 0 0; border-bottom: 1px solid #dcdde1;">
+            <h3 style="margin: 0; color: #2c3e50; font-size: 1.2rem;">Calculator</h3>
+            <button id="closeCalcBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #7f8c8d; line-height: 1;">&times;</button>
+        </div>
+        <div style="padding: 20px;">
+            <div class="calc-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+                <!-- Buttons generated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
+        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 350px; text-align: center;">
+            <h2 id="authTitle" style="color: #2c3e50; margin-top: 0;">Login</h2>
+            <p id="authSubtitle" style="color: #7f8c8d; margin-bottom: 20px;">Enter your credentials to access your history.</p>
+            
+            <div id="authError" style="color: #e74c3c; margin-bottom: 15px; font-size: 0.9rem; display: none;"></div>
+
+            <input type="email" id="emailInput" placeholder="Email Address" style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #dcdde1; border-radius: 4px; box-sizing: border-box; font-size: 1rem;">
+            <input type="password" id="passwordInput" placeholder="Password" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #dcdde1; border-radius: 4px; box-sizing: border-box; font-size: 1rem;">
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button id="submitAuthBtn" class="btn" style="background-color: #3498db; color: white; width: 100%;">Login</button>
+                <div style="font-size: 0.9rem; color: #7f8c8d;">
+                    <span id="authSwitchText">Don't have an account?</span>
+                    <button id="toggleAuthModeBtn" style="background: none; border: none; color: #3498db; cursor: pointer; font-weight: bold; text-decoration: underline;">Sign Up</button>
+                </div>
+            </div>
+            <button id="cancelLoginBtn" style="background: none; border: none; color: #95a5a6; margin-top: 15px; cursor: pointer; text-decoration: underline;">Continue as Guest</button>
+        </div>
+    </div>
+
+    <!-- Stats Modal -->
+    <div id="statsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
+        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 600px; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #2c3e50; margin: 0;">Progress Report</h2>
+                <button id="closeStatsBtn" style="background: none; border: none; font-size: 2rem; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+            
+            <div style="display: flex; justify-content: space-around; margin-bottom: 30px; background-color: #f1f2f6; padding: 20px; border-radius: 8px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; color: #2980b9;" id="totalAttempted">0</div>
+                    <div style="color: #7f8c8d; font-size: 0.9rem;">Attempted</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; color: #27ae60;" id="totalCorrect">0</div>
+                    <div style="color: #7f8c8d; font-size: 0.9rem;">Correct</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; color: #f39c12;" id="overallAccuracy">0%</div>
+                    <div style="color: #7f8c8d; font-size: 0.9rem;">Accuracy</div>
+                </div>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #ecf0f1; text-align: left;">
+                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7;">Topic</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; text-align: center;">Attempts</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; text-align: center;">Correct</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; text-align: center;">%</th>
+                    </tr>
+                </thead>
+                <tbody id="statsTableBody">
+                    <!-- Rows generated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
 
 {
   "name": "Algebra 1 Practice",
